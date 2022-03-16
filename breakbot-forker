@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+REPO=
+BASE=
+FORK=
+YAML=
+PR_LIMIT=5
+
+usage() {
+   # Display Help
+   echo "Forks a repository, commits a BreakBot configuration file, and copies its pull requests."
+   echo
+   echo "Syntax: breakbot-forker -o source-organization -r repository -t dest-organization [-b file.yml] [-l limit] [-h]"
+   echo "options:"
+   echo "o     The organization to fork from."
+   echo "r     The name of the repository."
+   echo "t     The organization to fork to."
+   echo "b     The .github/breakbot.yml file to commit."
+   echo "l     Limit the number of PRs to copy."
+   echo "h     Print this help."
+   echo
+}
+
+abort() {
+  usage
+  exit 1
+}
+
+while getopts "ho:r:t:b:l:" option; do
+  case $option in
+    h)
+      usage
+      exit
+      ;;
+    o)
+      BASE=$OPTARG
+      ;;
+    r)
+      REPO=$OPTARG
+      ;;
+    t)
+      FORK=$OPTARG
+      ;;
+    b)
+      if [[ -f "$OPTARG" ]]; then
+        YAML=$OPTARG
+      else
+        echo "$OPTARG doesn't exist"
+        abort
+      fi
+      ;;
+    l)
+      PR_LIMIT=$OPTARG
+      ;;
+    \?)
+      echo "Invalid option"
+      abort
+      ;;
+  esac
+done
+
+BASE_REPO="$BASE/$REPO"
+FORK_REPO="$FORK/$REPO"
+
+# Fork & clone $BASE_REPO as $FORK
+gh repo fork --org $FORK --clone $BASE_REPO
+
+# Setup breakbot.yml
+cd $REPO
+mkdir -p .github
+cp $YAML .github/breakbot.yml
+git add .github/breakbot.yml
+git commit -m ".github/breakbot.yml"
+git push
+
+# Copy PRs from $BASE_REPO to $FORK_REPO
+prs=$(gh pr list --repo $BASE_REPO --limit $PR_LIMIT --state open | cut -f1-3)
+while IFS=$'\t' read -r prId prTitle prHead; do
+  echo "Copying PR#$prId: $prTitle [$prHead]"
+  gh pr create --repo $FORK_REPO --title "$prTitle" --head $prHead --body "Copy of $BASE_REPO:$prId" --no-maintainer-edit
+done <<< $prs
