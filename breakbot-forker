@@ -7,7 +7,6 @@ YAML=
 PR_LIMIT=5
 
 usage() {
-   # Display Help
    echo "Forks a repository, commits a BreakBot configuration file, and copies its pull requests."
    echo
    echo "Syntax: breakbot-forker -o source-organization -r repository -t dest-organization [-b file.yml] [-l limit] [-h]"
@@ -58,6 +57,10 @@ while getopts "ho:r:t:b:l:" option; do
       ;;
   esac
 done
+
+if [[ -z $BASE || -z $REPO || -z $FORK ]]; then
+	abort
+fi
 
 BASE_REPO="$BASE/$REPO"
 FORK_REPO="$FORK/$REPO"
